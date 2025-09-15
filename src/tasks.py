@@ -20,7 +20,6 @@ from timesketch_import_client import importer
 
 from .app import celery, redis_client
 
-
 def get_or_create_sketch(
     timesketch_api_client,
     redis_client,
@@ -36,7 +35,7 @@ def get_or_create_sketch(
         client: Timesketch API client.
         redis_client: Redis client.
         sketch_id: ID of the sketch to retrieve.
-        sketch_name: Name of the sketch to create.
+        sketch_name: Name of the sketch to create or reuse.
         workflow_id: ID of the workflow.
 
     Returns:
@@ -47,7 +46,15 @@ def get_or_create_sketch(
     if sketch_id:
         sketch = timesketch_api_client.get_sketch(int(sketch_id))
     elif sketch_name:
-        sketch = timesketch_api_client.create_sketch(sketch_name)
+        # Search for an existing sketch with the given name
+        for _sketch in timesketch_api_client.list_sketches():
+            if _sketch.name == sketch_name:
+                sketch = _sketch
+                break
+
+        # If not found, create a new one
+        if not sketch:
+            sketch = timesketch_api_client.create_sketch(sketch_name)
     else:
         sketch_name = f"openrelik-workflow-{workflow_id}"
         # Prevent multiple distributed workers from concurrently creating the same
@@ -66,6 +73,7 @@ def get_or_create_sketch(
                 sketch = timesketch_api_client.create_sketch(sketch_name)
 
     return sketch
+
 
 
 # Task name used to register and route the task to the correct queue.
